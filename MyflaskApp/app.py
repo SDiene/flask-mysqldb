@@ -197,7 +197,7 @@ def dashboard():
 # Article Form Class
 class ArticleForm(Form):
     title = StringField('Title', [validators.Length(min=1, max=200)])
-    author = TextAreaField('Author', [validators.Length(min=30)])
+    body = TextAreaField('Body', [validators.Length(min=30)])
 
 
 # Add Article
@@ -207,13 +207,13 @@ def add_article():
     form = ArticleForm(request.form)
     if request.method == 'POST' and form.validate():
         title = form.title.data
-        author = form.author.data
+        body = form.body.data
 
         # Create Cursor
         cur = mysql.connection.cursor()
 
         # Execute
-        cur.execute("INSERT INTO articles(title, author, create_date) VALUES(%s, %s, %s)",(title, author, now.strftime('%Y-%m-%d %H:%M:%S')))
+        cur.execute("INSERT INTO articles(author, title, body, create_date) VALUES(%s, %s, %s, %s)",(session['username'], title, body, now.strftime('%Y-%m-%d %H:%M:%S')))
 
         # Commit to DB
         mysql.connection.commit()
@@ -228,6 +228,68 @@ def add_article():
     return render_template('add_article.html', form=form)
 
 
+# Edit Article
+@app.route('/edit_article/<string:id>', methods=['GET', 'POST'])
+@is_logged_in
+def edit_article(id):
+    # Create cursor
+    cur = mysql.connection.cursor()
+
+    # Get article by id
+    result = cur.execute("SELECT * FROM articles WHERE id = %s", [id])
+
+    article = cur.fetchone()
+    cur.close()
+    # Get form
+    form = ArticleForm(request.form)
+
+    # Populate article form fields
+    form.title.data = article['title']
+    form.body.data = article['body']
+
+    if request.method == 'POST' and form.validate():
+        title = request.form['title']
+        body = request.form['body']
+
+        # Create Cursor
+        cur = mysql.connection.cursor()
+        app.logger.info(title)
+        # Execute
+        cur.execute ("UPDATE articles SET title=%s, body=%s WHERE id=%s",(title, body, id))
+        # Commit to DB
+        mysql.connection.commit()
+
+        #Close connection
+        cur.close()
+
+        flash('Article Updated', 'success')
+
+        return redirect(url_for('dashboard'))
+
+    return render_template('edit_article.html', form=form)
+
+
+# Delete Article
+@app.route('/delete_article/<string:id>', methods=['POST'])
+@is_logged_in
+def delete_article(id):
+    # Create cursor
+    cur = mysql.connection.cursor()
+
+    # Execute
+    cur.execute("DELETE FROM articles WHERE id = %s", [id])
+
+    # Commit to DB
+    mysql.connection.commit()
+
+    #Close connection
+    cur.close()
+
+    flash('Article Deleted', 'success')
+
+    return redirect(url_for('dashboard'))
+
+    
 if __name__ == '__main__': 
     app.secret_key='secret123'
     app.run(debug=True)
